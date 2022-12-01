@@ -9,25 +9,21 @@ import re
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
-import json
+import datetime
 
 cred = credentials.Certificate("C:\\resource\\platerecognitionsd-firebase-adminsdk-hsdoj-13e6844f01.json")
 default_app = firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-collection = db.collection('logs')
-teste =  { "plate":  "IML7489",
-          "dateHour": "30 de novembro de 2022 00:34:14 UTC-3"
-          }
-         
-#res = collection.add(teste)
+validPlates = db.collection('validPlates')
 
-resposta = collection.where('plate', '==', 'IML7393').get()
-if resposta:
-     print(resposta)
+logs = db.collection('logs')
 
-
-
+def insertLog(plate):
+     log =  { "plate":  plate,
+              "dateHour": datetime.datetime.now()
+            }
+     logs.add(log)
 
 def detected(img):
      saida = ''
@@ -86,13 +82,20 @@ def test():
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     plate = detected(img)
+    plate = plate.strip().upper()
     letras =  " ".join(re.findall("[a-zA-Z]+", plate))
     numeros = " ".join(re.findall("[0-9]+", plate))
     if (len(letras) == 3 or len(letras) == 4) and (len(numeros) == 3 or len(numeros) == 4):
         print(plate)
-        response = {'plate': '{}'.format(plate)}
+        insertLog(plate)
+        status = 500
+        resposta = validPlates.where('plate', '==', plate).get()
+        print(resposta)
+        if resposta:
+          status = 200
+        response = {'plate': plate}
         response_pickled = jsonpickle.encode(response)
-        return Response(response=response_pickled, status=200, mimetype="application/json")
+        return Response(response=response_pickled, status=status, mimetype="application/json")
     else:    
          return Response(status=404, mimetype="application/json")
 
